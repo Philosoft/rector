@@ -9,3 +9,4 @@ services:
     Rector\Php80\Rector\Ternary\GetDebugTypeRector: null
     Rector\Php80\Rector\FuncCall\TokenGetAllToObjectRector: null
     Rector\Php80\Rector\Catch_\RemoveUnusedVariableInCatchRector: null
+    Rector\Php80\Rector\Class_\ClassPropertyAssignToConstructorPromotionRector: null
