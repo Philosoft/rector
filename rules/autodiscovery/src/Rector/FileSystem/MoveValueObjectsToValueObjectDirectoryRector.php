@@ -148,7 +148,7 @@ CODE_SAMPLE
             return false;
         }
 
-        if (!$this->enableValueObjectGuessing) {
+        if (! $this->enableValueObjectGuessing) {
             return false;
         }
 
