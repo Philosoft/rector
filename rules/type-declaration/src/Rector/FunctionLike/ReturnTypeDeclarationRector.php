@@ -14,10 +14,20 @@ use PhpParser\Node\Stmt\ClassMethod;
 use PhpParser\Node\Stmt\Function_;
 use PhpParser\Node\Stmt\Throw_;
 use PhpParser\Node\UnionType as PhpParserUnionType;
+use PHPStan\PhpDocParser\Ast\PhpDoc\ReturnTagValueNode;
+use PHPStan\PhpDocParser\Ast\Type\IdentifierTypeNode;
+use PHPStan\PhpDocParser\Ast\Type\TypeNode;
+use PHPStan\Type\ArrayType;
+use PHPStan\Type\BooleanType;
+use PHPStan\Type\FloatType;
+use PHPStan\Type\IntegerType;
 use PHPStan\Type\MixedType;
 use PHPStan\Type\ObjectType;
+use PHPStan\Type\StringType;
 use PHPStan\Type\Type;
 use PHPStan\Type\UnionType;
+use PHPStan\Type\VoidType;
+use Rector\BetterPhpDocParser\PhpDocInfo\PhpDocInfo;
 use Rector\Core\Exception\ShouldNotHappenException;
 use Rector\Core\RectorDefinition\CodeSample;
 use Rector\Core\RectorDefinition\RectorDefinition;
@@ -136,6 +146,7 @@ PHP
 
         /** @var Name|NullableType|PhpParserUnionType $inferredReturnNode */
         $this->addReturnType($node, $inferredReturnNode);
+        $this->removeReturnTagIfNotUseful($node);
 
         if ($node instanceof ClassMethod) {
             $this->populateChildren($node, $inferedType);
@@ -312,5 +323,64 @@ PHP
         }
 
         return $inferedType->isSubTypeOf($currentType)->yes();
+    }
+
+    /**
+     * @param ClassMethod|Function_ $functionLike
+     */
+    private function removeReturnTagIfNotUseful(FunctionLike $functionLike): void
+    {
+        /** @var PhpDocInfo|null $phpDocInfo */
+        $phpDocInfo = $functionLike->getAttribute(AttributeKey::PHP_DOC_INFO);
+        if ($phpDocInfo === null) {
+            return;
+        }
+
+        $returnTagValueNode = $phpDocInfo->getByType(ReturnTagValueNode::class);
+        if ($returnTagValueNode === null) {
+            return;
+        }
+
+        // useful
+        if ($returnTagValueNode->description !== '') {
+            return;
+        }
+
+        $returnType = $phpDocInfo->getReturnType();
+        if ($returnType instanceof MixedType) {
+            return;
+        }
+
+        // is bare type
+        if ($returnType instanceof FloatType || $returnType instanceof StringType || $returnType instanceof IntegerType) {
+            $phpDocInfo->removeByType(ReturnTagValueNode::class);
+        }
+
+        if ($returnType instanceof BooleanType && $this->isIdentifierWithValues(
+            $returnTagValueNode->type,
+            ['bool', 'boolean']
+        )) {
+            $phpDocInfo->removeByType(ReturnTagValueNode::class);
+        }
+
+        if ($returnType instanceof ArrayType && $this->isIdentifierWithValues($returnTagValueNode->type, ['array'])) {
+            $phpDocInfo->removeByType(ReturnTagValueNode::class);
+        }
+
+        if ($returnType instanceof VoidType && $this->isIdentifierWithValues($returnTagValueNode->type, ['void'])) {
+            $phpDocInfo->removeByType(ReturnTagValueNode::class);
+        }
+    }
+
+    /**
+     * @param string[] $values
+     */
+    private function isIdentifierWithValues(TypeNode $typeNode, array $values): bool
+    {
+        if (! $typeNode instanceof IdentifierTypeNode) {
+            return false;
+        }
+
+        return in_array($typeNode->name, $values, true);
     }
 }
